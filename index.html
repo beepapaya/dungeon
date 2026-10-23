@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>3D DUNGEON EXPLORER - 30x30 5-Floor Vertical Dungeon</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="game-container">
+    <!-- ヘッダー情報バー -->
+    <header id="game-header">
+      <div class="header-section title-section">
+        <span class="game-logo">⚔️ 3D DUNGEON EXPLORER</span>
+      </div>
+      <div class="header-section stats-section">
+        <span class="stat-badge highlight" id="floor-display">1F</span>
+        <span class="stat-badge" id="direction-display">DIR: SOUTH</span>
+        <span class="stat-badge" id="coords-display">X:01 Y:01</span>
+        <span class="stat-badge" id="steps-display">STEPS: 0</span>
+        <span class="stat-badge highlight" id="explored-display">踏破率: 0%</span>
+      </div>
+      <div class="header-section tools-section">
+        <button id="btn-audio-toggle" class="icon-btn" title="サウンド切替" aria-label="Sound Toggle">🔊</button>
+        <button id="btn-map-toggle" class="header-btn" title="マップ切替 [M]">🗺️ MAP [M]</button>
+      </div>
+    </header>
+
+    <!-- メインビュー領域 -->
+    <main id="viewport-area">
+      <!-- 3Dダンジョン視点 -->
+      <div id="canvas-wrapper-3d" class="canvas-wrapper active">
+        <canvas id="canvas-3d" width="640" height="400"></canvas>
+        <div id="compass-overlay">
+          <div id="compass-needle">S</div>
+        </div>
+        <div id="view-mode-badge">3D VIEW</div>
+      </div>
+
+      <!-- 2Dオートマップ視点 -->
+      <div id="canvas-wrapper-map" class="canvas-wrapper">
+        <canvas id="canvas-map" width="640" height="400"></canvas>
+        <div id="map-legend">
+          <span><i class="legend-swatch wall"></i>壁</span>
+          <span><i class="legend-swatch door"></i>扉</span>
+          <span><i class="legend-swatch stairs"></i>階段</span>
+          <span><i class="legend-swatch player"></i>現在地</span>
+        </div>
+        <div id="map-floor-selector">
+          <button class="floor-btn active" data-floor="0">1F</button>
+          <button class="floor-btn" data-floor="1">2F</button>
+          <button class="floor-btn" data-floor="2">3F</button>
+          <button class="floor-btn" data-floor="3">4F</button>
+          <button class="floor-btn" data-floor="4">5F</button>
+        </div>
+        <div id="view-mode-badge">AUTOMAP (30x30)</div>
+      </div>
+    </main>
+
+    <!-- メッセージ＆探索ログパネル -->
+    <section id="info-panel">
+      <div id="log-box">
+        <div id="log-content">
+          <p class="system-msg">広大なる30×30マス・5階建ての立体迷宮へ足を踏み入れた。</p>
+          <p class="hint-msg">[W/S/A/D] 移動, [Q/E] 旋回, [SPACE] 調べる, [M] マップ切替</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- コントロールエリア（PC用キーガイド 兼 スマホ用タッチパッド） -->
+    <footer id="control-panel">
+      <!-- モバイル用D-PADとアクションボタン -->
+      <div id="touch-controls">
+        <div class="dpad-container">
+          <button class="ctrl-btn turn-btn" id="btn-turn-left" data-key="KeyQ">↶ 旋回</button>
+          <button class="ctrl-btn move-btn" id="btn-move-fwd" data-key="KeyW">▲ 前進</button>
+          <button class="ctrl-btn turn-btn" id="btn-turn-right" data-key="KeyE">↷ 旋回</button>
+          
+          <button class="ctrl-btn strafe-btn" id="btn-strafe-left" data-key="KeyA">◀ 左歩</button>
+          <button class="ctrl-btn move-btn" id="btn-move-back" data-key="KeyS">▼ 後退</button>
+          <button class="ctrl-btn strafe-btn" id="btn-strafe-right" data-key="KeyD">▶ 右歩</button>
+        </div>
+
+        <div class="action-buttons">
+          <button class="ctrl-btn action-btn primary" id="btn-search" data-key="Space">
+            <span class="icon">🔍</span>
+            <span class="label">調べる</span>
+            <span class="subtext">[SPACE]</span>
+          </button>
+          <button class="ctrl-btn action-btn secondary" id="btn-toggle-map-touch" data-key="KeyM">
+            <span class="icon">🗺️</span>
+            <span class="label">マップ切替</span>
+            <span class="subtext">[M]</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- デスクトップ用ショートカット一覧 -->
+      <div id="keyboard-guide">
+        <div class="key-col"><kbd>W</kbd> 前進 / <kbd>S</kbd> 後退</div>
+        <div class="key-col"><kbd>A</kbd> 左移動 / <kbd>D</kbd> 右移動</div>
+        <div class="key-col"><kbd>Q</kbd> 左旋回 / <kbd>E</kbd> 右旋回</div>
+        <div class="key-col"><kbd>Space</kbd> 調べる(扉/階段/壁)</div>
+        <div class="key-col"><kbd>M</kbd> マップ表示切替</div>
+      </div>
+    </footer>
+  </div>
+
+  <!-- クリアモーダル -->
+  <div id="clear-modal" class="modal hidden">
+    <div class="modal-content">
+      <h2 class="victory-title">★ LABYRINTH CONQUERED ★</h2>
+      <p class="victory-subtitle">全5階層の立体迷宮を制覇し、星幽の天頂碑へ到達した！</p>
+      <div id="victory-stats">
+        <div class="stat-row"><span>到達フロア:</span><strong>最上層 5F</strong></div>
+        <div class="stat-row"><span>総歩数:</span><strong id="final-steps">0</strong> 歩</div>
+        <div class="stat-row"><span>全階踏破率:</span><strong id="final-explored">0%</strong></div>
+        <div class="stat-row"><span>探索時間:</span><strong id="final-time">00:00</strong></div>
+      </div>
+      <div class="modal-actions" style="margin-top: 20px; display: flex; gap: 10px; justify-content: center;">
+        <button id="btn-continue-explore" class="primary-btn">探索を続ける</button>
+        <button id="btn-play-again" class="cancel-btn">最初から探索する</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- リセット確認モーダル -->
+  <div id="reset-confirm-modal" class="modal hidden">
+    <div class="modal-content small">
+      <h3>探索をリセットしますか？</h3>
+      <p>マップの探索記録や現在位置が最初に戻ります。</p>
+      <div class="modal-actions">
+        <button id="btn-reset-cancel" class="cancel-btn">キャンセル</button>
+        <button id="btn-reset-confirm" class="danger-btn">最初から始める</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- スクリプトの読み込み -->
+  <script src="js/audio.js"></script>
+  <script src="js/dungeon.js"></script>
+  <script src="js/state.js"></script>
+  <script src="js/renderer3d.js"></script>
+  <script src="js/automap.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
