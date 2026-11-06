@@ -134,7 +134,51 @@ class GameState {
 
   revealSurroundings() {
     const curFloorData = DUNGEON_DATA.floors[this.floor];
-    // Reveal 3x3 around player
+
+    const isBlockingTile = (x, y) => {
+      if (x < 0 || x >= curFloorData.width || y < 0 || y >= curFloorData.height) return true;
+      const tile = curFloorData.grid[y][x];
+      const key = `${this.floor},${x},${y}`;
+      if (tile === TILES.WALL) return true;
+      if (tile === TILES.SECRET_WALL && !this.revealedSecrets.has(key)) return true;
+      if ((tile === TILES.DOOR || tile === TILES.DOOR_IRON || 
+           tile === TILES.DOOR_SILVER || tile === TILES.DOOR_GOLD) && 
+          !this.openedDoors.has(key)) {
+        return true;
+      }
+      return false;
+    };
+
+    const hasLineOfSight = (x0, y0, x1, y1) => {
+      let dx = Math.abs(x1 - x0);
+      let dy = Math.abs(y1 - y0);
+      let sx = (x0 < x1) ? 1 : -1;
+      let sy = (y0 < y1) ? 1 : -1;
+      let err = dx - dy;
+
+      let cx = x0;
+      let cy = y0;
+
+      while (cx !== x1 || cy !== y1) {
+        if (cx !== x0 || cy !== y0) {
+          if (isBlockingTile(cx, cy)) {
+            return false;
+          }
+        }
+        let e2 = 2 * err;
+        if (e2 > -dy) {
+          err -= dy;
+          cx += sx;
+        }
+        if (e2 < dx) {
+          err += dx;
+          cy += sy;
+        }
+      }
+      return true;
+    };
+
+    // 1. Reveal 3x3 immediately around player (unconditional)
     for (let dy = -1; dy <= 1; dy++) {
       for (let dx = -1; dx <= 1; dx++) {
         const nx = this.x + dx;
@@ -145,15 +189,29 @@ class GameState {
       }
     }
 
-    // Reveal up to 3 tiles in front of player
-    const dirInfo = DIRECTIONS[this.dir];
-    for (let dist = 1; dist <= 3; dist++) {
-      const fx = this.x + dirInfo.dx * dist;
-      const fy = this.y + dirInfo.dy * dist;
-      if (fx >= 0 && fx < curFloorData.width && fy >= 0 && fy < curFloorData.height) {
-        this.markVisited(this.floor, fx, fy);
-        const tile = curFloorData.grid[fy][fx];
-        if (tile === TILES.WALL) break;
+    // 2. Reveal expansive Field-of-View Cone in front of player (up to 5 tiles distance)
+    const fwd = DIRECTIONS[this.dir];
+    const right = DIRECTIONS[(this.dir + 1) % 4];
+
+    // Lateral vision width per distance:
+    // d=1: lat -1..1 (3 tiles wide)
+    // d=2: lat -2..2 (5 tiles wide)
+    // d=3: lat -3..3 (7 tiles wide)
+    // d=4: lat -3..3 (7 tiles wide)
+    // d=5: lat -2..2 (5 tiles wide)
+    const latSpans = [0, 1, 2, 3, 3, 2];
+
+    for (let dist = 1; dist <= 5; dist++) {
+      const maxLat = latSpans[dist] || 1;
+      for (let lat = -maxLat; lat <= maxLat; lat++) {
+        const tx = this.x + fwd.dx * dist + right.dx * lat;
+        const ty = this.y + fwd.dy * dist + right.dy * lat;
+
+        if (tx >= 0 && tx < curFloorData.width && ty >= 0 && ty < curFloorData.height) {
+          if (hasLineOfSight(this.x, this.y, tx, ty)) {
+            this.markVisited(this.floor, tx, ty);
+          }
+        }
       }
     }
   }

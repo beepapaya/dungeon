@@ -307,6 +307,37 @@ class SoundSystem {
       start += note.d * 0.95;
     });
   }
+
+  // 11. Masterpiece Painting Discovery & View Chime (Graceful Harp Arpeggio)
+  playPaintingDiscovery() {
+    if (!this.enabled) return;
+    this.init();
+    if (!this.ctx) return;
+
+    // Elegant ascending harp arpeggio: C5 -> E5 -> G5 -> B5 -> D6
+    const notes = [523.25, 659.25, 783.99, 987.77, 1174.66];
+    let start = this.ctx.currentTime;
+
+    notes.forEach((freq, idx) => {
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, start);
+
+      const noteDuration = 0.28;
+      gain.gain.setValueAtTime(0.14, start);
+      gain.gain.exponentialRampToValueAtTime(0.001, start + noteDuration);
+
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+
+      osc.start(start);
+      osc.stop(start + noteDuration);
+
+      start += 0.06; // quick arpeggio spacing
+    });
+  }
 }
 
 // Global Sound Instance

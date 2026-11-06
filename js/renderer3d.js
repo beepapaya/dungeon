@@ -166,21 +166,23 @@ class DungeonRenderer3D {
       warpLine: '#ec4899'
     };
 
-    // Perspective depth planes (distance 0 to 4)
+    // Perspective depth planes (distance 0 to 6)
     // Box bounds: [halfWidth, halfHeight]
     this.depths = [
-      { w: 320, h: 200 }, // d=0 (player cell boundary)
-      { w: 180, h: 130 }, // d=1
-      { w: 100, h: 80  }, // d=2
-      { w: 52,  h: 46  }, // d=3
-      { w: 22,  h: 22  }  // d=4 (far vanishing plane)
+      { w: 320, h: 200 }, // d=0 (player cell boundary: 640x400)
+      { w: 184, h: 130 }, // d=1 (368x260)
+      { w: 108, h: 82  }, // d=2 (216x164)
+      { w: 64,  h: 52  }, // d=3 (128x104)
+      { w: 38,  h: 32  }, // d=4 (76x64)
+      { w: 20,  h: 18  }, // d=5 (40x36)
+      { w: 6,   h: 6   }  // d=6 (far vanishing plane)
     ];
 
     this.lastRenderTime = 0;
   }
 
   getScreenBounds(d, lat) {
-    const plane = this.depths[d];
+    const plane = this.depths[Math.min(d, this.depths.length - 1)];
     const cellWidth = plane.w * 2;
     const x0 = this.cx - plane.w + lat * cellWidth;
     const x1 = x0 + cellWidth;
@@ -229,16 +231,16 @@ class DungeonRenderer3D {
       };
     };
 
-    // 2. Render cells from furthest depth to closest (Painter's algorithm: d = 3 down to 0)
-    for (let d = 3; d >= 0; d--) {
-      // For each depth, render side blocks then center block: [-2, 2, -1, 1, 0]
-      const laterals = [-2, 2, -1, 1, 0];
+    // 2. Render cells from furthest depth to closest (Painter's algorithm: d = 5 down to 0)
+    for (let d = 5; d >= 0; d--) {
+      // For each depth, render outer lateral columns then center: [-3, 3, -2, 2, -1, 1, 0]
+      const laterals = [-3, 3, -2, 2, -1, 1, 0];
       for (const lat of laterals) {
         this.renderCell(d, lat, getCellAt, state, theme);
       }
     }
 
-    // 3. Render Wall Torches on corridor walls (d=1, lat=0 sides) to create atmospheric lighting
+    // 3. Render Wall Torches on corridor walls (d=1 and d=3) to create atmospheric lighting
     this.renderTorches(state, getCellAt, theme, this.lastRenderTime);
 
     // 4. Cinematic Vignette & Subtle Scanline overlay
@@ -249,7 +251,7 @@ class DungeonRenderer3D {
 
   renderCeilingAndFloor(theme, time) {
     const ctx = this.ctx;
-    const far = this.depths[3];
+    const far = this.depths[6];
 
     // Ceiling gradient
     const ceilGrad = ctx.createLinearGradient(0, 0, 0, this.cy);
@@ -267,11 +269,11 @@ class DungeonRenderer3D {
 
     // Ceiling Beams / Arch Structure
     ctx.save();
-    for (let d = 3; d >= 1; d--) {
+    for (let d = 5; d >= 1; d--) {
       const p = this.depths[d];
       const pPrev = this.depths[d - 1];
       const beamY = this.cy - p.h;
-      const beamH = Math.max(3, (pPrev.h - p.h) * 0.12);
+      const beamH = Math.max(2, (pPrev.h - p.h) * 0.12);
 
       // Horizontal arch stone beam
       ctx.fillStyle = theme.beamColor;
@@ -321,7 +323,7 @@ class DungeonRenderer3D {
     ctx.stroke();
 
     // 2. Transverse cobblestone seams across depths
-    for (let d = 0; d <= 3; d++) {
+    for (let d = 0; d <= 5; d++) {
       const p = this.depths[d];
       const y = this.cy + p.h;
 
@@ -376,28 +378,30 @@ class DungeonRenderer3D {
       return;
     }
 
-    // Side Walls: check neighboring cell to left or right along player's line of sight
-    if (lat === 0) {
-      // Left side wall
-      const leftCell = getCellAt(d, -1);
+    // Side Walls: check neighboring cells facing toward the player's central sight line
+    // For cells on player's left (lat <= 0), their left boundary (lat - 1) faces inward toward center
+    if (lat <= 0) {
+      const leftCell = getCellAt(d, lat - 1);
       const leftIsWall = (leftCell.tile === TILES.WALL) || 
         (leftCell.tile === TILES.SECRET_WALL && !state.revealedSecrets.has(leftCell.key));
       if (leftIsWall) {
-        this.drawSideWall(d, -1, leftCell, theme);
+        this.drawSideWall(d, lat, -1, leftCell, theme);
       } else if (leftCell.tile === TILES.DOOR || leftCell.tile === TILES.DOOR_IRON || 
                  leftCell.tile === TILES.DOOR_SILVER || leftCell.tile === TILES.DOOR_GOLD) {
-        this.drawSideDoor(d, -1, leftCell, state, theme);
+        this.drawSideDoor(d, lat, -1, leftCell, state, theme);
       }
+    }
 
-      // Right side wall
-      const rightCell = getCellAt(d, 1);
+    // For cells on player's right (lat >= 0), their right boundary (lat + 1) faces inward toward center
+    if (lat >= 0) {
+      const rightCell = getCellAt(d, lat + 1);
       const rightIsWall = (rightCell.tile === TILES.WALL) || 
         (rightCell.tile === TILES.SECRET_WALL && !state.revealedSecrets.has(rightCell.key));
       if (rightIsWall) {
-        this.drawSideWall(d, 1, rightCell, theme);
+        this.drawSideWall(d, lat, 1, rightCell, theme);
       } else if (rightCell.tile === TILES.DOOR || rightCell.tile === TILES.DOOR_IRON || 
                  rightCell.tile === TILES.DOOR_SILVER || rightCell.tile === TILES.DOOR_GOLD) {
-        this.drawSideDoor(d, 1, rightCell, state, theme);
+        this.drawSideDoor(d, lat, 1, rightCell, state, theme);
       }
     }
 
@@ -431,25 +435,28 @@ class DungeonRenderer3D {
   // --- Beautiful Front Wall Rendering ---
 
   drawFrontWall(d, lat, cell, theme) {
-    if (d > 3) return;
+    if (d > 5) return;
     const ctx = this.ctx;
     const cur = this.getScreenBounds(d, lat);
 
-    // Depth attenuation factor (1.0 close up, drops to 0.3 far away)
-    const depthDim = Math.max(0.25, 1.0 - d * 0.24);
+    // Off-screen culling
+    if (cur.x1 < -50 || cur.x0 > this.width + 50) return;
+
+    // Depth attenuation factor (1.0 close up, drops to 0.18 far away)
+    const depthDim = Math.max(0.18, 1.0 - d * 0.16);
 
     // Base Wall Background Fill
     ctx.fillStyle = theme.stoneDark;
     ctx.fillRect(cur.x0, cur.y0, cur.w, cur.h);
 
     // Number of brick rows & columns based on depth
-    const rows = d === 0 ? 5 : (d === 1 ? 4 : 3);
+    const rows = d === 0 ? 5 : (d === 1 ? 4 : (d <= 3 ? 3 : 2));
     const rowH = cur.h / rows;
-    const cols = d <= 1 ? 4 : 3;
+    const cols = d <= 1 ? 4 : (d <= 3 ? 3 : 2);
     const colW = cur.w / cols;
 
     // Cornice (Top Architrave) & Baseboard (Bottom Trim)
-    const trimH = Math.max(3, rowH * 0.18);
+    const trimH = Math.max(2, rowH * 0.18);
     // Top Cornice
     ctx.fillStyle = theme.stoneTint;
     ctx.fillRect(cur.x0, cur.y0, cur.w, trimH);
@@ -464,7 +471,7 @@ class DungeonRenderer3D {
     ctx.strokeRect(cur.x0, cur.y1 - trimH, cur.w, trimH);
 
     // Draw individual stone bricks with bevels & textures
-    const mortarGap = d === 0 ? 3 : (d === 1 ? 2 : 1.5);
+    const mortarGap = d === 0 ? 3 : (d === 1 ? 2 : 1.2);
 
     for (let r = 0; r < rows; r++) {
       const by = cur.y0 + r * rowH;
@@ -534,7 +541,7 @@ class DungeonRenderer3D {
 
     // Outer Wall Frame (Mortar boundary)
     ctx.strokeStyle = theme.mortar;
-    ctx.lineWidth = d === 0 ? 3 : 2;
+    ctx.lineWidth = d === 0 ? 3 : (d <= 2 ? 2 : 1);
     ctx.strokeRect(cur.x0, cur.y0, cur.w, cur.h);
 
     // Glowing Neon / Mystic Wireframe Edge
@@ -547,22 +554,31 @@ class DungeonRenderer3D {
     // Atmospheric Depth Fog overlay
     if (d >= 1) {
       ctx.fillStyle = theme.fogColor;
-      ctx.globalAlpha = d === 1 ? 0.20 : (d === 2 ? 0.45 : 0.70);
+      const fogAlphas = [0, 0.15, 0.30, 0.48, 0.65, 0.82];
+      ctx.globalAlpha = fogAlphas[d] !== undefined ? fogAlphas[d] : 0.85;
       ctx.fillRect(cur.x0, cur.y0, cur.w, cur.h);
       ctx.globalAlpha = 1.0;
+    }
+
+    // Check for Famous Masterpiece Painting Landmark on Front Wall
+    if (cell.interactive && cell.interactive.type === 'painting') {
+      this.drawFrontWallPainting(d, lat, cell, theme);
     }
   }
 
   // --- Beautiful Perspective Side Wall Rendering ---
 
-  drawSideWall(d, side, cell, theme) {
-    if (d >= 3) return;
+  drawSideWall(d, lat, side, cell, theme) {
+    if (d >= 5) return;
     const ctx = this.ctx;
-    const near = this.getScreenBounds(d, 0);
-    const far = this.getScreenBounds(d + 1, 0);
+    const near = this.getScreenBounds(d, lat);
+    const far = this.getScreenBounds(d + 1, lat);
 
     const xNear = side < 0 ? near.x0 : near.x1;
     const xFar  = side < 0 ? far.x0  : far.x1;
+
+    // Off-screen culling
+    if ((xNear < -50 && xFar < -50) || (xNear > this.width + 50 && xFar > this.width + 50)) return;
 
     // Base trapezoid fill
     ctx.fillStyle = theme.stoneDark;
@@ -575,8 +591,8 @@ class DungeonRenderer3D {
     ctx.fill();
 
     // Perspective Brickwork on Side Wall
-    const rows = 4;
-    const depthCols = 3; // depth subdivisions between d and d+1
+    const rows = d <= 1 ? 4 : (d <= 3 ? 3 : 2);
+    const depthCols = d <= 1 ? 3 : (d <= 3 ? 2 : 1);
 
     ctx.save();
     // Clip to the trapezoid so brick lines don't leak out
@@ -603,7 +619,7 @@ class DungeonRenderer3D {
       ctx.stroke();
 
       // Stone Highlight on row edge
-      if (r < rows) {
+      if (r < rows && d <= 2) {
         ctx.strokeStyle = theme.stoneLight;
         ctx.lineWidth = 1;
         ctx.beginPath();
@@ -632,18 +648,20 @@ class DungeonRenderer3D {
         const seamBotY = seamTopY + ((near.y1 - near.y0) + (far.y1 - far.y0 - (near.y1 - near.y0)) * curU) / rows;
 
         ctx.strokeStyle = theme.mortar;
-        ctx.lineWidth = 1.5;
+        ctx.lineWidth = 1.2;
         ctx.beginPath();
         ctx.moveTo(seamX, seamTopY);
         ctx.lineTo(seamX, seamBotY);
         ctx.stroke();
 
         // Subtle bevel shadow
-        ctx.strokeStyle = theme.mortarEdge;
-        ctx.beginPath();
-        ctx.moveTo(seamX + (side < 0 ? 1 : -1), seamTopY);
-        ctx.lineTo(seamX + (side < 0 ? 1 : -1), seamBotY);
-        ctx.stroke();
+        if (d <= 2) {
+          ctx.strokeStyle = theme.mortarEdge;
+          ctx.beginPath();
+          ctx.moveTo(seamX + (side < 0 ? 1 : -1), seamTopY);
+          ctx.lineTo(seamX + (side < 0 ? 1 : -1), seamBotY);
+          ctx.stroke();
+        }
       }
     }
 
@@ -651,8 +669,8 @@ class DungeonRenderer3D {
 
     // Outline Wireframe & Edge Bevel
     ctx.strokeStyle = theme.wireframe;
-    ctx.lineWidth = d === 0 ? 2 : 1.5;
-    ctx.globalAlpha = 0.5;
+    ctx.lineWidth = d === 0 ? 2 : 1;
+    ctx.globalAlpha = Math.max(0.2, 0.55 - d * 0.08);
     ctx.beginPath();
     ctx.moveTo(xNear, near.y0);
     ctx.lineTo(xFar, far.y0);
@@ -665,7 +683,8 @@ class DungeonRenderer3D {
     // Side Wall Atmospheric Fog
     if (d >= 1) {
       ctx.fillStyle = theme.fogColor;
-      ctx.globalAlpha = d === 1 ? 0.25 : 0.50;
+      const fogAlphas = [0, 0.18, 0.35, 0.52, 0.68, 0.82];
+      ctx.globalAlpha = fogAlphas[d] !== undefined ? fogAlphas[d] : 0.85;
       ctx.beginPath();
       ctx.moveTo(xNear, near.y0);
       ctx.lineTo(xFar, far.y0);
@@ -675,41 +694,297 @@ class DungeonRenderer3D {
       ctx.fill();
       ctx.globalAlpha = 1.0;
     }
+
+    // Check for Famous Masterpiece Painting Landmark on Side Wall
+    if (cell.interactive && cell.interactive.type === 'painting') {
+      this.drawSideWallPainting(d, lat, side, cell, theme);
+    }
+  }
+
+  // --- Masterpiece Landmark Painting Rendering ---
+
+  drawFrontWallPainting(d, lat, cell, theme) {
+    if (d > 4) return;
+    const ctx = this.ctx;
+    const cur = this.getScreenBounds(d, lat);
+    if (cur.x1 < -50 || cur.x0 > this.width + 50) return;
+
+    const painting = window.paintingManager?.getPainting(cell.interactive.paintingId);
+    if (!painting) return;
+
+    const pCanvas = window.paintingManager.getCanvas(painting.id);
+    if (!pCanvas) return;
+
+    // Center position of the wall
+    const cx = cur.x0 + cur.w * 0.5;
+    const cy = cur.y0 + cur.h * 0.46; // eye-level slightly above center
+
+    // Calculate frame dimensions based on wall depth and painting aspect ratio
+    const isLandscape = painting.aspect === 'landscape';
+    const frameW = cur.w * (isLandscape ? 0.60 : 0.44);
+    const frameH = cur.h * (isLandscape ? 0.44 : 0.58);
+    const fx0 = cx - frameW * 0.5;
+    const fy0 = cy - frameH * 0.5;
+
+    ctx.save();
+
+    // 1. Gallery Spot Light Aura on Wall (Warm golden glow)
+    const spotR = Math.max(20, frameW * 0.85);
+    const spotGrad = ctx.createRadialGradient(cx, fy0 + frameH * 0.35, 6, cx, fy0 + frameH * 0.35, spotR);
+    spotGrad.addColorStop(0, 'rgba(254, 240, 138, 0.28)');
+    spotGrad.addColorStop(0.5, 'rgba(245, 158, 11, 0.12)');
+    spotGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.fillStyle = spotGrad;
+    ctx.fillRect(cur.x0, cur.y0, cur.w, cur.h);
+
+    // 2. Brass Picture Light Fixture mounted above frame (d <= 2)
+    if (d <= 2) {
+      const lampW = frameW * 0.52;
+      const lampH = Math.max(3, 7 - d * 2);
+      const lampY = fy0 - lampH - Math.max(2, 6 - d * 2);
+      // Brass lamp casing
+      ctx.fillStyle = '#f59e0b';
+      ctx.fillRect(cx - lampW * 0.5, lampY, lampW, lampH);
+      ctx.strokeStyle = '#fef08a';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(cx - lampW * 0.5, lampY, lampW, lampH);
+      // Mounting bracket
+      ctx.strokeStyle = '#92400e';
+      ctx.beginPath();
+      ctx.moveTo(cx, lampY + lampH);
+      ctx.lineTo(cx, fy0);
+      ctx.stroke();
+    }
+
+    // 3. Frame Drop Shadow
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
+    const shadowOff = Math.max(2, 8 - d * 1.5);
+    ctx.fillRect(fx0 + shadowOff, fy0 + shadowOff, frameW, frameH);
+
+    // 4. Antique Gold Frame Outer Molding
+    const borderThickness = Math.max(2, Math.round(frameW * 0.08));
+    
+    // Gold gradient for frame
+    const frameGrad = ctx.createLinearGradient(fx0, fy0, fx0 + frameW, fy0 + frameH);
+    frameGrad.addColorStop(0, '#fef08a'); // Top-left highlight
+    frameGrad.addColorStop(0.25, '#d97706'); // Gold body
+    frameGrad.addColorStop(0.7, '#92400e'); // Deep bronze
+    frameGrad.addColorStop(1, '#78350f'); // Shadow
+    ctx.fillStyle = frameGrad;
+    ctx.fillRect(fx0, fy0, frameW, frameH);
+
+    // Inner bevel shadow & carving line
+    if (borderThickness >= 4) {
+      ctx.strokeStyle = '#fef08a';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(fx0 + 1, fy0 + 1, frameW - 2, frameH - 2);
+
+      ctx.strokeStyle = '#451a03';
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(fx0 + borderThickness * 0.5, fy0 + borderThickness * 0.5, 
+                     frameW - borderThickness, frameH - borderThickness);
+    }
+
+    // Inner Velvet Mat
+    const matThickness = Math.max(1, Math.round(borderThickness * 0.4));
+    const matX = fx0 + borderThickness;
+    const matY = fy0 + borderThickness;
+    const matW = frameW - borderThickness * 2;
+    const matH = frameH - borderThickness * 2;
+
+    ctx.fillStyle = '#17120e';
+    ctx.fillRect(matX, matY, matW, matH);
+
+    // 5. The Artwork Canvas (Draw cached masterpiece)
+    const artX = matX + matThickness;
+    const artY = matY + matThickness;
+    const artW = Math.max(2, matW - matThickness * 2);
+    const artH = Math.max(2, matH - matThickness * 2);
+
+    ctx.drawImage(pCanvas, artX, artY, artW, artH);
+
+    // Inner Canvas edge line
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.6)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(artX, artY, artW, artH);
+
+    // 6. Brass Title Plaque beneath frame (for d <= 1)
+    if (d <= 1) {
+      const plaqueW = Math.min(frameW * 0.85, 140);
+      const plaqueH = 14;
+      const plaqueX = cx - plaqueW * 0.5;
+      const plaqueY = fy0 + frameH + 3;
+
+      const pGrad = ctx.createLinearGradient(plaqueX, plaqueY, plaqueX, plaqueY + plaqueH);
+      pGrad.addColorStop(0, '#fef08a');
+      pGrad.addColorStop(0.5, '#d97706');
+      pGrad.addColorStop(1, '#92400e');
+      ctx.fillStyle = pGrad;
+      ctx.fillRect(plaqueX, plaqueY, plaqueW, plaqueH);
+      ctx.strokeStyle = '#451a03';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(plaqueX, plaqueY, plaqueW, plaqueH);
+
+      // Inscribed text
+      ctx.fillStyle = '#1c1510';
+      ctx.font = `bold ${d === 0 ? 10 : 8}px 'Courier New', monospace`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(painting.title, cx, plaqueY + plaqueH * 0.5);
+    }
+
+    // 7. Depth Fog over Painting
+    if (d >= 1) {
+      ctx.fillStyle = theme.fogColor;
+      const fogAlphas = [0, 0.12, 0.25, 0.42, 0.60, 0.80];
+      ctx.globalAlpha = fogAlphas[d] !== undefined ? fogAlphas[d] : 0.6;
+      ctx.fillRect(fx0, fy0, frameW, frameH + (d <= 1 ? 18 : 0));
+      ctx.globalAlpha = 1.0;
+    }
+
+    ctx.restore();
+  }
+
+  drawSideWallPainting(d, lat, side, cell, theme) {
+    if (d > 2) return; // Only render on close side walls
+    const ctx = this.ctx;
+    const near = this.getScreenBounds(d, lat);
+    const far = this.getScreenBounds(d + 1, lat);
+
+    const xNear = side < 0 ? near.x0 : near.x1;
+    const xFar  = side < 0 ? far.x0  : far.x1;
+
+    const painting = window.paintingManager?.getPainting(cell.interactive.paintingId);
+    if (!painting) return;
+
+    const pCanvas = window.paintingManager.getCanvas(painting.id);
+    if (!pCanvas) return;
+
+    ctx.save();
+
+    // Clip to the side wall polygon
+    ctx.beginPath();
+    ctx.moveTo(xNear, near.y0);
+    ctx.lineTo(xFar, far.y0);
+    ctx.lineTo(xFar, far.y1);
+    ctx.lineTo(xNear, near.y1);
+    ctx.closePath();
+    ctx.clip();
+
+    // Perspective interpolation for center of side wall (u = 0.32 to 0.68)
+    const u0 = 0.32;
+    const u1 = 0.68;
+    const frameX0 = xNear + (xFar - xNear) * u0;
+    const frameX1 = xNear + (xFar - xNear) * u1;
+
+    const yTop0 = near.y0 + (far.y0 - near.y0) * u0;
+    const yTop1 = near.y0 + (far.y0 - near.y0) * u1;
+    const yBot0 = near.y1 + (far.y1 - near.y1) * u0;
+    const yBot1 = near.y1 + (far.y1 - near.y1) * u1;
+
+    const wallH0 = yBot0 - yTop0;
+    const wallH1 = yBot1 - yTop1;
+
+    // Paint quad vertically centered
+    const pyTop0 = yTop0 + wallH0 * 0.28;
+    const pyBot0 = yTop0 + wallH0 * 0.72;
+    const pyTop1 = yTop1 + wallH1 * 0.28;
+    const pyBot1 = yTop1 + wallH1 * 0.72;
+
+    // Outer Gold frame trapezoid
+    ctx.fillStyle = '#b45309';
+    ctx.beginPath();
+    ctx.moveTo(frameX0, pyTop0);
+    ctx.lineTo(frameX1, pyTop1);
+    ctx.lineTo(frameX1, pyBot1);
+    ctx.lineTo(frameX0, pyBot0);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.strokeStyle = '#fef08a';
+    ctx.lineWidth = d === 0 ? 2 : 1;
+    ctx.stroke();
+
+    // Inner painting area
+    const padU = 0.04;
+    const ix0 = xNear + (xFar - xNear) * (u0 + padU);
+    const ix1 = xNear + (xFar - xNear) * (u1 - padU);
+    const iyTop0 = yTop0 + wallH0 * 0.33;
+    const iyBot0 = yTop0 + wallH0 * 0.67;
+    const iyTop1 = yTop1 + wallH1 * 0.33;
+    const iyBot1 = yTop1 + wallH1 * 0.67;
+
+    // Clip inner art trapezoid
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(ix0, iyTop0);
+    ctx.lineTo(ix1, iyTop1);
+    ctx.lineTo(ix1, iyBot1);
+    ctx.lineTo(ix0, iyBot0);
+    ctx.closePath();
+    ctx.clip();
+
+    // Draw painting image over bounding box
+    const minX = Math.min(ix0, ix1);
+    const maxX = Math.max(ix0, ix1);
+    const minY = Math.min(iyTop0, iyTop1);
+    const maxY = Math.max(iyBot0, iyBot1);
+    ctx.drawImage(pCanvas, minX, minY, maxX - minX, maxY - minY);
+
+    ctx.restore();
+
+    // Side Wall Fog over painting
+    if (d >= 1) {
+      ctx.fillStyle = theme.fogColor;
+      ctx.globalAlpha = d === 1 ? 0.25 : 0.45;
+      ctx.beginPath();
+      ctx.moveTo(frameX0, pyTop0);
+      ctx.lineTo(frameX1, pyTop1);
+      ctx.lineTo(frameX1, pyBot1);
+      ctx.lineTo(frameX0, pyBot0);
+      ctx.closePath();
+      ctx.fill();
+      ctx.globalAlpha = 1.0;
+    }
+
+    ctx.restore();
   }
 
   // --- Atmospheric Wall Torches with Ambient Glow ---
 
   renderTorches(state, getCellAt, theme, time) {
-    const ctx = this.ctx;
-    // Draw torches on side walls at distance d=1 if adjacent is a solid wall
-    const cellL1 = getCellAt(1, -1);
-    const cellR1 = getCellAt(1, 1);
-    const hasLeftWall = (cellL1.tile === TILES.WALL) || (cellL1.tile === TILES.SECRET_WALL && !state.revealedSecrets.has(cellL1.key));
-    const hasRightWall = (cellR1.tile === TILES.WALL) || (cellR1.tile === TILES.SECRET_WALL && !state.revealedSecrets.has(cellR1.key));
+    // Draw torches on side walls at distance d=1 and d=3 if adjacent is a solid wall
+    for (const d of [1, 3]) {
+      const cellL = getCellAt(d, -1);
+      const cellR = getCellAt(d, 1);
+      const hasLeftWall = (cellL.tile === TILES.WALL) || (cellL.tile === TILES.SECRET_WALL && !state.revealedSecrets.has(cellL.key));
+      const hasRightWall = (cellR.tile === TILES.WALL) || (cellR.tile === TILES.SECRET_WALL && !state.revealedSecrets.has(cellR.key));
 
-    const near = this.getScreenBounds(1, 0);
-    const far = this.getScreenBounds(2, 0);
+      const near = this.getScreenBounds(d, 0);
+      const far = this.getScreenBounds(d + 1, 0);
+      const scale = d === 1 ? 1.0 : 0.55;
 
-    // Left Torch
-    if (hasLeftWall) {
-      const tx = near.x0 + (far.x0 - near.x0) * 0.45;
-      const ty = (near.y0 + far.y0) * 0.5 + 24;
-      this.drawSingleTorch(tx, ty, -1, theme, time, 0);
-    }
+      // Left Torch
+      if (hasLeftWall) {
+        const tx = near.x0 + (far.x0 - near.x0) * 0.45;
+        const ty = (near.y0 + far.y0) * 0.5 + (d === 1 ? 24 : 12);
+        this.drawSingleTorch(tx, ty, -1, theme, time, d * 10, scale);
+      }
 
-    // Right Torch
-    if (hasRightWall) {
-      const tx = near.x1 + (far.x1 - near.x1) * 0.45;
-      const ty = (near.y0 + far.y0) * 0.5 + 24;
-      this.drawSingleTorch(tx, ty, 1, theme, time, 42);
+      // Right Torch
+      if (hasRightWall) {
+        const tx = near.x1 + (far.x1 - near.x1) * 0.45;
+        const ty = (near.y0 + far.y0) * 0.5 + (d === 1 ? 24 : 12);
+        this.drawSingleTorch(tx, ty, 1, theme, time, 42 + d * 10, scale);
+      }
     }
   }
 
-  drawSingleTorch(x, y, side, theme, time, seedOffset) {
+  drawSingleTorch(x, y, side, theme, time, seedOffset, scale = 1.0) {
     const ctx = this.ctx;
     // Dynamic flickering flame
     const flicker = Math.sin((time + seedOffset * 100) * 0.012) * 2 + Math.cos((time + seedOffset * 70) * 0.023) * 1.5;
-    const glowRadius = 60 + flicker * 3;
+    const glowRadius = (60 + flicker * 3) * scale;
 
     // 1. Ambient Radial Glow on stone wall
     const grad = ctx.createRadialGradient(x, y, 2, x, y, glowRadius);
@@ -723,50 +998,50 @@ class DungeonRenderer3D {
 
     // 2. Iron Sconce Bracket
     ctx.strokeStyle = '#1e293b';
-    ctx.lineWidth = 3;
+    ctx.lineWidth = Math.max(1.5, 3 * scale);
     ctx.beginPath();
-    const wallAnchorX = x - side * 12;
-    ctx.moveTo(wallAnchorX, y + 8);
-    ctx.lineTo(x, y + 10);
-    ctx.lineTo(x, y + 2);
+    const wallAnchorX = x - side * (12 * scale);
+    ctx.moveTo(wallAnchorX, y + 8 * scale);
+    ctx.lineTo(x, y + 10 * scale);
+    ctx.lineTo(x, y + 2 * scale);
     ctx.stroke();
 
     // Iron ring socket
     ctx.fillStyle = '#475569';
-    ctx.fillRect(x - 3, y - 1, 6, 4);
+    ctx.fillRect(x - 3 * scale, y - 1 * scale, 6 * scale, 4 * scale);
 
     // 3. Wooden Torch Handle
     ctx.fillStyle = '#451a03';
-    ctx.fillRect(x - 2, y - 8, 4, 8);
+    ctx.fillRect(x - 2 * scale, y - 8 * scale, 4 * scale, 8 * scale);
 
     // 4. Flickering Flame (Multi-layer teardrop)
-    const flameH = 14 + flicker;
-    const flameW = 7 + flicker * 0.5;
+    const flameH = (14 + flicker) * scale;
+    const flameW = (7 + flicker * 0.5) * scale;
 
     // Outer flame (Red/Orange/Purple)
     ctx.fillStyle = theme.torchFireOuter;
     ctx.beginPath();
-    ctx.moveTo(x - flameW * 0.5, y - 7);
-    ctx.quadraticCurveTo(x - flameW, y - 14, x + flicker * 0.3, y - 7 - flameH);
-    ctx.quadraticCurveTo(x + flameW, y - 14, x + flameW * 0.5, y - 7);
+    ctx.moveTo(x - flameW * 0.5, y - 7 * scale);
+    ctx.quadraticCurveTo(x - flameW, y - 14 * scale, x + flicker * 0.3 * scale, y - 7 * scale - flameH);
+    ctx.quadraticCurveTo(x + flameW, y - 14 * scale, x + flameW * 0.5, y - 7 * scale);
     ctx.closePath();
     ctx.fill();
 
     // Mid flame (Bright Orange/Cyan/Magenta)
     ctx.fillStyle = theme.torchFireMid;
     ctx.beginPath();
-    ctx.moveTo(x - flameW * 0.3, y - 7);
-    ctx.quadraticCurveTo(x - flameW * 0.6, y - 12, x + flicker * 0.2, y - 7 - flameH * 0.75);
-    ctx.quadraticCurveTo(x + flameW * 0.6, y - 12, x + flameW * 0.3, y - 7);
+    ctx.moveTo(x - flameW * 0.3, y - 7 * scale);
+    ctx.quadraticCurveTo(x - flameW * 0.6, y - 12 * scale, x + flicker * 0.2 * scale, y - 7 * scale - flameH * 0.75);
+    ctx.quadraticCurveTo(x + flameW * 0.6, y - 12 * scale, x + flameW * 0.3, y - 7 * scale);
     ctx.closePath();
     ctx.fill();
 
     // Inner Core flame (Intense Yellow/White)
     ctx.fillStyle = theme.torchFireInner;
     ctx.beginPath();
-    ctx.moveTo(x - flameW * 0.15, y - 7);
-    ctx.quadraticCurveTo(x - flameW * 0.3, y - 10, x, y - 7 - flameH * 0.45);
-    ctx.quadraticCurveTo(x + flameW * 0.3, y - 10, x + flameW * 0.15, y - 7);
+    ctx.moveTo(x - flameW * 0.15, y - 7 * scale);
+    ctx.quadraticCurveTo(x - flameW * 0.3, y - 10 * scale, x, y - 7 * scale - flameH * 0.45);
+    ctx.quadraticCurveTo(x + flameW * 0.3, y - 10 * scale, x + flameW * 0.15, y - 7 * scale);
     ctx.closePath();
     ctx.fill();
   }
@@ -774,8 +1049,12 @@ class DungeonRenderer3D {
   // --- High Quality Doors & Archways ---
 
   drawFrontDoor(d, lat, tileType, isOpen, theme) {
+    if (d > 5) return;
     const ctx = this.ctx;
     const cur = this.getScreenBounds(d, lat);
+
+    // Off-screen culling
+    if (cur.x1 < -50 || cur.x0 > this.width + 50) return;
 
     const doorW = cur.w * 0.56;
     const doorH = cur.h * 0.82;
@@ -783,7 +1062,7 @@ class DungeonRenderer3D {
     const doorY = cur.y1 - doorH;
 
     // 1. Stone Arch Frame (Architrave with Keystone)
-    const framePad = d <= 1 ? 6 : 4;
+    const framePad = d <= 1 ? 6 : (d <= 3 ? 4 : 2);
     ctx.fillStyle = theme.stoneTint;
     ctx.fillRect(doorX - framePad, doorY - framePad, doorW + framePad * 2, doorH + framePad);
 
@@ -811,8 +1090,8 @@ class DungeonRenderer3D {
       ctx.fillStyle = this.colors.doorFill;
       ctx.beginPath();
       ctx.moveTo(doorX, doorY);
-      ctx.lineTo(doorX + doorW * 0.24, doorY + 8);
-      ctx.lineTo(doorX + doorW * 0.24, cur.y1 - 6);
+      ctx.lineTo(doorX + doorW * 0.24, doorY + (d <= 1 ? 8 : 4));
+      ctx.lineTo(doorX + doorW * 0.24, cur.y1 - (d <= 1 ? 6 : 3));
       ctx.lineTo(doorX, cur.y1);
       ctx.closePath();
       ctx.fill();
@@ -825,7 +1104,7 @@ class DungeonRenderer3D {
       ctx.fillRect(doorX, doorY, doorW, doorH);
 
       // Vertical Wood Planks
-      const planks = 4;
+      const planks = d <= 2 ? 4 : 2;
       const plankW = doorW / planks;
       ctx.strokeStyle = '#0e0b08';
       ctx.lineWidth = 1;
@@ -840,7 +1119,7 @@ class DungeonRenderer3D {
       // Heavy Iron Horizontal Straps / Hinges
       const strapY1 = doorY + doorH * 0.22;
       const strapY2 = doorY + doorH * 0.72;
-      const strapH = Math.max(4, doorH * 0.08);
+      const strapH = Math.max(2, doorH * 0.08);
 
       const drawStrap = (sy) => {
         ctx.fillStyle = frameColor;
@@ -849,11 +1128,13 @@ class DungeonRenderer3D {
         ctx.globalAlpha = 1.0;
 
         // Rivets / Studs along strap
-        ctx.fillStyle = '#0f172a';
-        for (let rx = doorX + 8; rx < doorX + doorW - 6; rx += doorW * 0.22) {
-          ctx.beginPath();
-          ctx.arc(rx, sy + strapH / 2, d <= 1 ? 2 : 1.2, 0, Math.PI * 2);
-          ctx.fill();
+        if (d <= 2) {
+          ctx.fillStyle = '#0f172a';
+          for (let rx = doorX + 8; rx < doorX + doorW - 6; rx += doorW * 0.22) {
+            ctx.beginPath();
+            ctx.arc(rx, sy + strapH / 2, d <= 1 ? 2 : 1.2, 0, Math.PI * 2);
+            ctx.fill();
+          }
         }
       };
 
@@ -861,23 +1142,25 @@ class DungeonRenderer3D {
       drawStrap(strapY2);
 
       // Antique Ring Handle / Escutcheon
-      const midY = doorY + doorH * 0.52;
-      const handleX = doorX + doorW * 0.78;
+      if (d <= 3) {
+        const midY = doorY + doorH * 0.52;
+        const handleX = doorX + doorW * 0.78;
 
-      ctx.strokeStyle = frameColor;
-      ctx.lineWidth = d <= 1 ? 2 : 1.5;
-      ctx.beginPath();
-      ctx.arc(handleX, midY, d <= 1 ? 5 : 3, 0, Math.PI * 2);
-      ctx.stroke();
+        ctx.strokeStyle = frameColor;
+        ctx.lineWidth = d <= 1 ? 2 : 1;
+        ctx.beginPath();
+        ctx.arc(handleX, midY, d <= 1 ? 5 : 2.5, 0, Math.PI * 2);
+        ctx.stroke();
 
-      // Keyhole Escutcheon Plate
-      ctx.fillStyle = '#0f172a';
-      ctx.fillRect(handleX - 2, midY - 6, 4, 4);
+        // Keyhole Escutcheon Plate
+        ctx.fillStyle = '#0f172a';
+        ctx.fillRect(handleX - 2, midY - 6, 4, 4);
+      }
 
       // Lock Badge / Crest for Special Keyed Doors
       if (tileType === TILES.DOOR_IRON || tileType === TILES.DOOR_SILVER || tileType === TILES.DOOR_GOLD) {
-        // Glowing lock crest plate in center of door
-        const crestSize = Math.max(14, doorW * 0.35);
+        const midY = doorY + doorH * 0.52;
+        const crestSize = Math.max(8, doorW * 0.35);
         ctx.fillStyle = '#0a0d14';
         ctx.strokeStyle = frameColor;
         ctx.lineWidth = 1.5;
@@ -886,29 +1169,44 @@ class DungeonRenderer3D {
         ctx.fill();
         ctx.stroke();
 
-        ctx.font = `${Math.max(10, Math.floor(18 - d * 3))}px monospace`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillStyle = frameColor;
-        ctx.fillText('🔒', doorX + doorW / 2, midY - 3);
+        if (d <= 3) {
+          ctx.font = `${Math.max(8, Math.floor(18 - d * 3))}px monospace`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillStyle = frameColor;
+          ctx.fillText('🔒', doorX + doorW / 2, midY - 3);
+        }
       }
+    }
+
+    // Door atmospheric fog for depth
+    if (d >= 1) {
+      ctx.fillStyle = theme.fogColor;
+      const fogAlphas = [0, 0.15, 0.30, 0.48, 0.65, 0.82];
+      ctx.globalAlpha = fogAlphas[d] !== undefined ? fogAlphas[d] : 0.85;
+      ctx.fillRect(doorX - framePad, doorY - framePad, doorW + framePad * 2, doorH + framePad);
+      ctx.globalAlpha = 1.0;
     }
   }
 
-  drawSideDoor(d, side, cell, state, theme) {
+  drawSideDoor(d, lat, side, cell, state, theme) {
+    if (d >= 5) return;
     const ctx = this.ctx;
-    const near = this.getScreenBounds(d, 0);
-    const far = this.getScreenBounds(d + 1, 0);
+    const near = this.getScreenBounds(d, lat);
+    const far = this.getScreenBounds(d + 1, lat);
     const xNear = side < 0 ? near.x0 : near.x1;
     const xFar  = side < 0 ? far.x0  : far.x1;
 
+    // Off-screen culling
+    if ((xNear < -50 && xFar < -50) || (xNear > this.width + 50 && xFar > this.width + 50)) return;
+
     // Draw door frame cutout in side wall
     ctx.strokeStyle = this.colors.doorLine;
-    ctx.lineWidth = 1.5;
+    ctx.lineWidth = d <= 1 ? 1.5 : 1.0;
     ctx.beginPath();
     const dX1 = xNear + (xFar - xNear) * 0.22;
     const dX2 = xNear + (xFar - xNear) * 0.78;
-    const dY0 = (near.y0 + far.y0) / 2 + 10;
+    const dY0 = (near.y0 + far.y0) / 2 + (d <= 1 ? 10 : 5);
     const dY1 = (near.y1 + far.y1) / 2;
 
     ctx.moveTo(dX1, dY1);
@@ -929,10 +1227,12 @@ class DungeonRenderer3D {
   }
 
   drawSecretDoorFrame(d, lat, theme) {
+    if (d > 5) return;
     const ctx = this.ctx;
     const cur = this.getScreenBounds(d, lat);
+    if (cur.x1 < -50 || cur.x0 > this.width + 50) return;
     ctx.strokeStyle = '#34d399';
-    ctx.lineWidth = 2;
+    ctx.lineWidth = d <= 1 ? 2 : 1;
     ctx.setLineDash([5, 5]);
     ctx.strokeRect(cur.x0 + cur.w * 0.18, cur.y0 + cur.h * 0.18, cur.w * 0.64, cur.h * 0.82);
     ctx.setLineDash([]);
@@ -941,23 +1241,29 @@ class DungeonRenderer3D {
   // --- Stairs ---
 
   drawStairsDown(d, lat, theme) {
+    if (d > 5) return;
     const ctx = this.ctx;
     const cur = this.getScreenBounds(d, lat);
+    if (cur.x1 < -50 || cur.x0 > this.width + 50) return;
+
     const sx0 = cur.x0 + cur.w * 0.22;
     const sx1 = cur.x1 - cur.w * 0.22;
     const sy = cur.y1;
+    const scale = Math.max(0.2, 1.0 - d * 0.16);
+    const pitH = Math.max(4, 24 * scale);
 
     // Stairway pit hole in stone floor
     ctx.fillStyle = '#020408';
-    ctx.fillRect(sx0, sy - 24, sx1 - sx0, 24);
+    ctx.fillRect(sx0, sy - pitH, sx1 - sx0, pitH);
 
     ctx.strokeStyle = this.colors.stairsLine;
-    ctx.lineWidth = 2;
+    ctx.lineWidth = d <= 1 ? 2 : 1;
     // Step lines descending into floor with 3D step faces
-    for (let i = 0; i < 5; i++) {
-      const stepY = sy - 24 + i * 5;
-      const stepX0 = sx0 + i * 3.5;
-      const stepX1 = sx1 - i * 3.5;
+    const stepCount = d <= 2 ? 5 : 3;
+    for (let i = 0; i < stepCount; i++) {
+      const stepY = sy - pitH + (i * pitH / stepCount);
+      const stepX0 = sx0 + i * (3.5 * scale);
+      const stepX1 = sx1 - i * (3.5 * scale);
 
       // Tread highlight
       ctx.strokeStyle = '#e9d5ff';
@@ -968,32 +1274,39 @@ class DungeonRenderer3D {
 
       // Riser shadow
       ctx.fillStyle = '#1e1035';
-      ctx.fillRect(stepX0, stepY, stepX1 - stepX0, 2);
+      ctx.fillRect(stepX0, stepY, stepX1 - stepX0, Math.max(1, 2 * scale));
     }
 
-    ctx.font = 'bold 11px monospace';
-    ctx.fillStyle = this.colors.stairsLine;
-    ctx.textAlign = 'center';
-    ctx.fillText('▼ STAIRS DOWN', this.cx, sy - 28);
+    if (d <= 2) {
+      ctx.font = `bold ${Math.max(8, 11 - d * 2)}px monospace`;
+      ctx.fillStyle = this.colors.stairsLine;
+      ctx.textAlign = 'center';
+      ctx.fillText('▼ STAIRS DOWN', cur.x0 + cur.w / 2, sy - pitH - 4);
+    }
   }
 
   drawStairsUp(d, lat, theme) {
+    if (d > 5) return;
     const ctx = this.ctx;
     const cur = this.getScreenBounds(d, lat);
+    if (cur.x1 < -50 || cur.x0 > this.width + 50) return;
+
     const sx0 = cur.x0 + cur.w * 0.22;
     const sx1 = cur.x1 - cur.w * 0.22;
     const sy = cur.y1;
+    const scale = Math.max(0.2, 1.0 - d * 0.16);
 
     ctx.strokeStyle = this.colors.stairsLine;
-    ctx.lineWidth = 2;
+    ctx.lineWidth = d <= 1 ? 2 : 1;
     // Step lines ascending up
-    for (let i = 0; i < 5; i++) {
-      const stepY = sy - i * 9;
-      const stepX0 = sx0 + i * 4;
-      const stepX1 = sx1 - i * 4;
+    const stepCount = d <= 2 ? 5 : 3;
+    for (let i = 0; i < stepCount; i++) {
+      const stepY = sy - i * (9 * scale);
+      const stepX0 = sx0 + i * (4 * scale);
+      const stepX1 = sx1 - i * (4 * scale);
 
       ctx.fillStyle = '#2e1065';
-      ctx.fillRect(stepX0, stepY, stepX1 - stepX0, 4);
+      ctx.fillRect(stepX0, stepY, stepX1 - stepX0, Math.max(1, 4 * scale));
 
       ctx.strokeStyle = '#f3e8ff';
       ctx.beginPath();
@@ -1002,46 +1315,52 @@ class DungeonRenderer3D {
       ctx.stroke();
     }
 
-    ctx.font = 'bold 11px monospace';
-    ctx.fillStyle = this.colors.stairsLine;
-    ctx.textAlign = 'center';
-    ctx.fillText('▲ STAIRS UP', this.cx, sy - 46);
+    if (d <= 2) {
+      ctx.font = `bold ${Math.max(8, 11 - d * 2)}px monospace`;
+      ctx.fillStyle = this.colors.stairsLine;
+      ctx.textAlign = 'center';
+      ctx.fillText('▲ STAIRS UP', cur.x0 + cur.w / 2, sy - (stepCount * 9 * scale) - 6);
+    }
   }
 
   // --- Special Floor Gimmicks ---
 
   drawSpinnerTile(d, lat, theme) {
-    if (d > 2) return;
+    if (d > 4) return;
     const ctx = this.ctx;
     const cur = this.getScreenBounds(d, lat);
+    if (cur.x1 < -50 || cur.x0 > this.width + 50) return;
     const midX = cur.x0 + cur.w / 2;
     const midY = cur.y1 - cur.h * 0.15;
     const rx = cur.w * 0.32;
     const ry = cur.h * 0.09;
 
     ctx.strokeStyle = this.colors.spinnerLine;
-    ctx.lineWidth = 2;
+    ctx.lineWidth = d <= 1 ? 2 : 1;
     ctx.beginPath();
     ctx.ellipse(midX, midY, rx, ry, 0, 0, Math.PI * 2);
     ctx.stroke();
 
     // Spiral / Spinner arrows
-    ctx.beginPath();
-    ctx.arc(midX, midY, rx * 0.5, 0, Math.PI * 1.5);
-    ctx.stroke();
+    if (d <= 2) {
+      ctx.beginPath();
+      ctx.arc(midX, midY, rx * 0.5, 0, Math.PI * 1.5);
+      ctx.stroke();
+    }
   }
 
   drawWarpTile(d, lat, theme) {
-    if (d > 2) return;
+    if (d > 4) return;
     const ctx = this.ctx;
     const cur = this.getScreenBounds(d, lat);
+    if (cur.x1 < -50 || cur.x0 > this.width + 50) return;
     const midX = cur.x0 + cur.w / 2;
     const midY = cur.y1 - cur.h * 0.15;
     const rx = cur.w * 0.36;
     const ry = cur.h * 0.10;
 
     ctx.strokeStyle = this.colors.warpLine;
-    ctx.lineWidth = 2;
+    ctx.lineWidth = d <= 1 ? 2 : 1;
     ctx.beginPath();
     ctx.ellipse(midX, midY, rx, ry, 0, 0, Math.PI * 2);
     ctx.stroke();
@@ -1053,9 +1372,10 @@ class DungeonRenderer3D {
   // --- Interactive Objects (Chests, Relics, Exit) ---
 
   drawInteractive(d, lat, item, state, theme) {
-    if (d > 2) return;
+    if (d > 4) return;
     const ctx = this.ctx;
     const cur = this.getScreenBounds(d, lat);
+    if (cur.x1 < -50 || cur.x0 > this.width + 50) return;
     const centerX = cur.x0 + cur.w / 2;
     const baseY = cur.y1 - 6;
 

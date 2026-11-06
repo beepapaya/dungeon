@@ -32,9 +32,16 @@ class GameController {
     // Modals
     this.clearModal = document.getElementById('clear-modal');
     this.resetModal = document.getElementById('reset-confirm-modal');
+    this.paintingModal = document.getElementById('painting-modal');
+    this.paintingModalCanvas = document.getElementById('painting-modal-canvas');
+    this.paintingModalTitle = document.getElementById('painting-modal-title');
+    this.paintingModalArtist = document.getElementById('painting-modal-artist');
+    this.paintingModalDesc = document.getElementById('painting-modal-desc');
+    this.paintingModalHint = document.getElementById('painting-modal-hint');
 
     // Milestones tracking per floor (e.g. 25, 50, 75, 100)
     this.notifiedMilestones = new Set();
+    this.lastNotifiedPaintingId = null;
 
     this.isActionLocked = false;
   }
@@ -114,6 +121,19 @@ class GameController {
       this.resetModal.classList.add('hidden');
     });
 
+    // Painting Modal Buttons
+    document.getElementById('btn-close-painting')?.addEventListener('click', () => {
+      this.closePaintingModal();
+    });
+    document.getElementById('btn-close-painting-x')?.addEventListener('click', () => {
+      this.closePaintingModal();
+    });
+    this.paintingModal?.addEventListener('click', (e) => {
+      if (e.target === this.paintingModal) {
+        this.closePaintingModal();
+      }
+    });
+
     // Window resize handling
     window.addEventListener('resize', () => {
       this.render();
@@ -135,6 +155,14 @@ class GameController {
   }
 
   handleInput(code) {
+    // If Painting Modal is open, any action/escape/map key closes it
+    if (this.paintingModal && !this.paintingModal.classList.contains('hidden')) {
+      if (['Space', 'Enter', 'Escape', 'KeyM', 'KeyW', 'KeyS', 'KeyA', 'KeyD', 'KeyQ', 'KeyE'].includes(code)) {
+        this.closePaintingModal();
+      }
+      return;
+    }
+
     if (this.state.gameCleared && !this.clearModal.classList.contains('hidden')) {
       return;
     }
@@ -210,6 +238,7 @@ class GameController {
     }
 
     if (didAct) {
+      this.checkFrontForPaintingNotice();
       this.checkMilestones();
       this.updateHUD();
       this.render();
@@ -256,6 +285,10 @@ class GameController {
 
       // Check Front Interactive
       if (frontInteractive) {
+        if (frontInteractive.type === 'painting') {
+          this.inspectPainting(frontInteractive.paintingId);
+          return;
+        }
         if (frontInteractive.type === 'monument') {
           this.handleMonumentReached();
           return;
@@ -292,6 +325,71 @@ class GameController {
     // Nothing special found
     this.sound.playStep();
     this.log('周囲を慎重に調べた。足音だけが迷宮に響いている。', 'system-msg');
+  }
+
+  // Inspect Masterpiece Landmark Painting
+  inspectPainting(paintingId) {
+    const painting = window.paintingManager?.getPainting(paintingId);
+    if (!painting) return;
+
+    this.sound.playPaintingDiscovery();
+
+    // Log messages
+    this.log(`🖼️ 名画『${painting.title}』（${painting.artist}、${painting.year}）を鑑賞した。`, 'event-msg');
+    this.log(painting.landmarkHint, 'hint-msg');
+
+    // Populate modal texts
+    if (this.paintingModalTitle) {
+      this.paintingModalTitle.textContent = `${painting.title} (${painting.originalTitle})`;
+    }
+    if (this.paintingModalArtist) {
+      this.paintingModalArtist.textContent = `${painting.artist} (${painting.year})`;
+    }
+    if (this.paintingModalDesc) {
+      this.paintingModalDesc.textContent = painting.desc;
+    }
+    if (this.paintingModalHint) {
+      this.paintingModalHint.textContent = `📍 ${painting.landmarkHint}`;
+    }
+
+    // Draw high-res canvas onto modal canvas
+    const modalCanvas = window.paintingManager?.getModalCanvas(painting.id);
+    if (modalCanvas && this.paintingModalCanvas) {
+      this.paintingModalCanvas.width = modalCanvas.width;
+      this.paintingModalCanvas.height = modalCanvas.height;
+      const mctx = this.paintingModalCanvas.getContext('2d');
+      mctx.drawImage(modalCanvas, 0, 0);
+    }
+
+    // Show modal
+    if (this.paintingModal) {
+      this.paintingModal.classList.remove('hidden');
+    }
+  }
+
+  closePaintingModal() {
+    if (this.paintingModal) {
+      this.paintingModal.classList.add('hidden');
+    }
+  }
+
+  checkFrontForPaintingNotice() {
+    const curFloor = DUNGEON_DATA.floors[this.state.floor];
+    const dirInfo = DIRECTIONS[this.state.dir];
+    const fx = this.state.x + dirInfo.dx;
+    const fy = this.state.y + dirInfo.dy;
+    if (fx >= 0 && fx < curFloor.width && fy >= 0 && fy < curFloor.height) {
+      const frontInteractive = curFloor.interactives[`${fx},${fy}`];
+      if (frontInteractive && frontInteractive.type === 'painting') {
+        const painting = window.paintingManager?.getPainting(frontInteractive.paintingId);
+        if (painting && this.lastNotifiedPaintingId !== painting.id) {
+          this.lastNotifiedPaintingId = painting.id;
+          this.log(`🖼️ 正面の壁に名画『${painting.title}』が飾られている。（[SPACE]で鑑賞）`, 'hint-msg');
+        }
+        return;
+      }
+    }
+    this.lastNotifiedPaintingId = null;
   }
 
   useStairs(stairInfo) {
@@ -358,6 +456,8 @@ class GameController {
     if (standingInteractive && standingInteractive.type === 'message') {
       this.log(standingInteractive.text, 'event-msg');
     }
+
+    this.checkFrontForPaintingNotice();
   }
 
   checkMilestones() {

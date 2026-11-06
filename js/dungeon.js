@@ -92,6 +92,18 @@ const DUNGEON_DATA = {
       "14,26": {
             "type": "message",
             "text": "【静寂の祭壇】「上下階を行き来し、迷宮の構造を立体的に把握することが踏破への鍵となる」"
+      },
+      "9,3": {
+            "type": "painting",
+            "paintingId": "mona_lisa"
+      },
+      "20,5": {
+            "type": "painting",
+            "paintingId": "pearl_earring"
+      },
+      "3,21": {
+            "type": "painting",
+            "paintingId": "liberty"
       }
 }
     },
@@ -188,6 +200,18 @@ const DUNGEON_DATA = {
       "16,14": {
             "type": "message",
             "text": "【翡翠の秘室】「3Fを経由することで、この孤立した広間に到達できたようだ！」"
+      },
+      "9,13": {
+            "type": "painting",
+            "paintingId": "gleaners"
+      },
+      "20,13": {
+            "type": "painting",
+            "paintingId": "parasol"
+      },
+      "19,14": {
+            "type": "painting",
+            "paintingId": "birth_of_venus"
       }
 }
     },
@@ -284,6 +308,18 @@ const DUNGEON_DATA = {
       "14,14": {
             "type": "message",
             "text": "【中央の間】「足元の下り階段から、2Fの中央広間へ降りることができる」"
+      },
+      "14,1": {
+            "type": "painting",
+            "paintingId": "starry_night"
+      },
+      "7,15": {
+            "type": "painting",
+            "paintingId": "great_wave"
+      },
+      "4,20": {
+            "type": "painting",
+            "paintingId": "the_scream"
       }
 }
     },
@@ -364,6 +400,18 @@ const DUNGEON_DATA = {
       "14,6": {
             "type": "message",
             "text": "【天上の気配】「この階段を登れば、迷宮の最上層5Fだ！」"
+      },
+      "14,18": {
+            "type": "painting",
+            "paintingId": "the_kiss"
+      },
+      "14,12": {
+            "type": "painting",
+            "paintingId": "persistence_of_memory"
+      },
+      "14,1": {
+            "type": "painting",
+            "paintingId": "night_watch"
       }
 }
     },
@@ -433,6 +481,18 @@ const DUNGEON_DATA = {
       "14,12": {
             "type": "message",
             "text": "【天頂の間】「神秘なる紫光が満ちている。これこそ迷宮の頂点だ」"
+      },
+      "14,23": {
+            "type": "painting",
+            "paintingId": "last_supper"
+      },
+      "2,14": {
+            "type": "painting",
+            "paintingId": "sunflowers"
+      },
+      "27,14": {
+            "type": "painting",
+            "paintingId": "school_of_athens"
       }
 }
     }

@@ -44,6 +44,7 @@
           <span><i class="legend-swatch wall"></i>壁</span>
           <span><i class="legend-swatch door"></i>扉</span>
           <span><i class="legend-swatch stairs"></i>階段</span>
+          <span><i class="legend-swatch painting"></i>名画</span>
           <span><i class="legend-swatch player"></i>現在地</span>
         </div>
         <div id="map-floor-selector">
@@ -136,8 +137,42 @@
     </div>
   </div>
 
+  <!-- 名画鑑賞モーダル (Painting Viewer Modal) -->
+  <div id="painting-modal" class="modal hidden">
+    <div class="modal-content painting-modal-content">
+      <div class="painting-header">
+        <span class="gallery-badge">🏛️ MASTERPIECE GALLERY</span>
+        <button id="btn-close-painting-x" class="close-x-btn" title="閉じる" aria-label="Close">✕</button>
+      </div>
+      
+      <div class="painting-display-wrapper">
+        <div class="antique-frame">
+          <canvas id="painting-modal-canvas" width="360" height="480"></canvas>
+        </div>
+        <div class="brass-plaque">
+          <h2 id="painting-modal-title" class="plaque-title">モナ・リザ</h2>
+          <div id="painting-modal-artist" class="plaque-artist">レオナルド・ダ・ヴィンチ (1503年頃)</div>
+        </div>
+      </div>
+
+      <div class="painting-info-card">
+        <div id="painting-modal-desc" class="painting-desc">
+          スフマート技法による神秘的な微笑みと、背景の空気遠近法による雄大な山水。
+        </div>
+        <div id="painting-modal-hint" class="painting-hint">
+          📍 【探索の目印】ここから東へ進むと中央大扉へ通じる。
+        </div>
+      </div>
+
+      <div class="modal-actions" style="margin-top: 16px;">
+        <button id="btn-close-painting" class="primary-btn">鑑賞を終える [SPACE / ESC]</button>
+      </div>
+    </div>
+  </div>
+
   <!-- スクリプトの読み込み -->
   <script src="js/audio.js"></script>
+  <script src="js/paintings.js"></script>
   <script src="js/dungeon.js"></script>
   <script src="js/state.js"></script>
   <script src="js/renderer3d.js"></script>

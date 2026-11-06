@@ -73,6 +73,11 @@ class AutomapRenderer {
           // Explored wall cell: deep slate background
           ctx.fillStyle = '#080c14';
           ctx.fillRect(cx, cy, tileSize, tileSize);
+
+          // Draw painting landmark if mounted on this wall
+          if (interactive && interactive.type === 'painting') {
+            this.drawPaintingMapIcon(ctx, cx, cy, tileSize);
+          }
         } else {
           // Explored floor
           ctx.fillStyle = '#111927';
@@ -236,6 +241,36 @@ class AutomapRenderer {
       const fontSize = Math.max(10, Math.floor(s * 0.9));
       ctx.font = `${fontSize}px sans-serif`;
       ctx.fillText('🌟', cx + s / 2, cy + s / 2);
+    } else if (item.type === 'painting') {
+      this.drawPaintingMapIcon(ctx, cx, cy, s);
+    }
+  }
+
+  drawPaintingMapIcon(ctx, cx, cy, s) {
+    // Golden miniature picture frame icon on automap
+    const framePad = Math.max(1, Math.floor(s * 0.15));
+    const fx = cx + framePad;
+    const fy = cy + framePad;
+    const fw = s - framePad * 2;
+    const fh = s - framePad * 2;
+
+    // Glowing golden frame
+    ctx.fillStyle = '#b45309';
+    ctx.fillRect(fx, fy, fw, fh);
+    ctx.strokeStyle = '#fef08a';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(fx, fy, fw, fh);
+
+    // Inner canvas with art palette / gem
+    if (s >= 11) {
+      const fontSize = Math.max(8, Math.floor(s * 0.75));
+      ctx.font = `${fontSize}px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('🎨', cx + s / 2, cy + s / 2);
+    } else {
+      ctx.fillStyle = '#fbbf24';
+      ctx.fillRect(fx + 2, fy + 2, fw - 4, fh - 4);
     }
   }
 
